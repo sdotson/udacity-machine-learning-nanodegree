@@ -10,7 +10,7 @@ import time
 
 
 def create_dataloaders(data_directory, batch_size):
-    """Creates dataloaders for training, validation, and test data"""
+    """Create dataloaders for training, validation, and test data."""
     means = [0.485, 0.456, 0.406]
     std_deviations = [0.229, 0.224, 0.225]
     image_size = 224
@@ -56,35 +56,57 @@ def create_dataloaders(data_directory, batch_size):
     return dataloaders, class_to_idx
 
 
-def create_model(arch, hidden_units_size, output_units_size, device):
-    """Creates pre-trained model with custom classifier for given architecture"""
-    model = getattr(models, arch)(pretrained=True)
-
-    for param in model.parameters():
-        param.requires_grad = False
-
-    # define new classifier
-    input_size = model.classifier[0].in_features
-    classifier = nn.Sequential(
+def create_classifier(
+    input_size, hidden_units_size, dropout_probability, output_units_size
+):
+    """Create and return classifier."""
+    return nn.Sequential(
         OrderedDict(
             [
                 ("fc1", nn.Linear(input_size, hidden_units_size)),
                 ("relu", nn.ReLU()),
-                ("dropout", nn.Dropout(p=0.5)),
+                ("dropout", nn.Dropout(p=dropout_probability)),
                 ("fc2", nn.Linear(hidden_units_size, output_units_size)),
                 ("output", nn.LogSoftmax(dim=1)),
             ]
         )
     )
 
-    model.classifier = classifier
+
+def determine_classifier_input_size(classifier):
+    """Return input size for classifier"""
+    is_classifier_sequential = isinstance(
+        classifier, torch.nn.modules.container.Sequential
+    )
+    input_size = (
+        classifier[0].in_features
+        if is_classifier_sequential
+        else classifier.in_features
+    )
+    return input_size
+
+
+def create_model(
+    arch, hidden_units_size, dropout_probability, output_units_size, device
+):
+    """Create pretrained model with custom classifier for given architecture."""
+    model = getattr(models, arch)(pretrained=True)
+
+    for param in model.parameters():
+        param.requires_grad = False
+
+    # define new classifier
+    input_size = determine_classifier_input_size(model.classifier)
+    model.classifier = create_classifier(
+        input_size, hidden_units_size, dropout_probability, output_units_size
+    )
     model.to(device)
 
     return model, input_size
 
 
 def train_model(model, dataloaders, epochs, learning_rate, device):
-    """Trains model and periodically logs validation stats"""
+    """Train model and periodically log validation stats."""
     images_trained = 0
     print_every = 5
     running_loss = 0
@@ -139,8 +161,8 @@ def train_model(model, dataloaders, epochs, learning_rate, device):
 
 
 def process_image(image_path):
-    """ Scales, crops, and normalizes a PIL image for a PyTorch model,
-      returns a Torch tensor
+    """ Scale, crop, and normalize a PIL image for a PyTorch model and 
+      return as Torch tensor.
   """
     with Image.open(image_path) as image:
         shortest_side_length = 256
@@ -225,3 +247,24 @@ def predict(image_path, model, device, cat_to_name, top_k):
     )
 
     return chart_data
+
+
+def load_checkpoint(checkpoint_path, device):
+    """Load checkpoint at checkpoint_path with device and return pretrained model with custom classifier."""
+    # Below is a solution for loading checkpoint saved on a gpu device and I believe vice versa
+    # https://discuss.pytorch.org/t/on-a-cpu-device-how-to-load-checkpoint-saved-on-gpu-device/349
+    checkpoint = torch.load(checkpoint_path, map_location=lambda storage, loc: storage)
+    model = getattr(models, checkpoint["arch"])(pretrained=True)
+
+    input_size = determine_classifier_input_size(model.classifier)
+    model.classifier = create_classifier(
+        input_size,
+        checkpoint["hidden_size"],
+        checkpoint["dropout_probability"],
+        checkpoint["output_size"],
+    )
+    model.load_state_dict(checkpoint["state_dict"])
+    model.class_to_idx = checkpoint["class_to_idx"]
+    model.to(device)
+
+    return model

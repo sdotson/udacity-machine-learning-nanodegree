@@ -1,10 +1,9 @@
 # third party imports
 import argparse
 import json
-import torch
 
 # local imports
-from model import predict
+from model import predict, load_checkpoint
 from utils import determine_device
 from validation import validate_predict_args
 
@@ -34,14 +33,7 @@ device = determine_device(args.gpu)
 print("Using device {}...".format(device.type))
 
 print("Loading checkpoint...")
-# Below is a solution for loading checkpoint saved on a gpu device and I believe vice versa
-# https://discuss.pytorch.org/t/on-a-cpu-device-how-to-load-checkpoint-saved-on-gpu-device/349
-checkpoint = torch.load(args.checkpoint, map_location=lambda storage, loc: storage)
-model = checkpoint["pretrained_model"]
-model.classifier = checkpoint["classifier"]
-model.load_state_dict(checkpoint["state_dict"])
-model.class_to_idx = checkpoint["class_to_idx"]
-model.to(device)
+model = load_checkpoint(args.checkpoint, device)
 
 print("Predicting class for image...")
 chart_data = predict(args.image_path, model, device, cat_to_name, args.top_k)

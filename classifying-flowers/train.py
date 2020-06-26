@@ -17,11 +17,26 @@ EPOCHS_DEFAULT = 8
 
 # other settings
 BATCH_SIZE = 60
+DROPOUT_PROBABILITY = 0.5
+ARCH_CHOICES = [
+    "vgg16",
+    "vgg16_bn",
+    "vgg11",
+    "vgg11_bn",
+    "vgg13",
+    "vgg13_bn",
+    "vgg19",
+    "vgg19_bn",
+    "densenet121",
+    "densenet161",
+    "densenet169",
+    "densenet201",
+]
 
 # configure argument parser
 parser = argparse.ArgumentParser(description="Trains model and saves checkpoint")
 parser.add_argument("data_directory", help="the directory for the training data")
-parser.add_argument("--arch", default=ARCH_DEFAULT)
+parser.add_argument("--arch", choices=ARCH_CHOICES, default=ARCH_DEFAULT)
 parser.add_argument("--gpu", action="store_true")
 parser.add_argument("--learning_rate", type=float, default=LEARNING_RATE_DEFAULT)
 parser.add_argument("--save_dir")
@@ -48,7 +63,7 @@ output_units_size = sum(
     [os.path.isdir(training_directory + i) for i in os.listdir(training_directory)]
 )
 model, input_size = create_model(
-    args.arch, args.hidden_units, output_units_size, device
+    args.arch, args.hidden_units, DROPOUT_PROBABILITY, output_units_size, device
 )
 
 # train the model in place
@@ -58,11 +73,12 @@ train_model(model, dataloaders, args.epochs, args.learning_rate, device)
 # save checkpoint
 print("Saving checkpoint...")
 checkpoint = {
+    "arch": args.arch,
     "batch_size": BATCH_SIZE,
     "class_to_idx": class_to_idx,
-    "classifier": model.classifier,
+    "dropout_probability": DROPOUT_PROBABILITY,
+    "hidden_size": args.hidden_units,
     "input_size": input_size,
-    "pretrained_model": getattr(models, args.arch)(pretrained=True),
     "output_size": output_units_size,
     "state_dict": model.state_dict(),
 }

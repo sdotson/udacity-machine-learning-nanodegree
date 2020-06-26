@@ -10,15 +10,6 @@ def validate_train_args(args):
         # but let them know we are falling back to CPU
         print("GPU is not enabled for this device, falling back to CPU")
 
-    # check arch
-    if hasattr(models, args.arch) == False:
-        # not perfect, since there are a lot of attrs that aren't archs
-        raise ValueError(
-            "{} is not a valid architecture. Please remove flag or choose a valid architecture in torchvision.models".format(
-                args.arch
-            )
-        )
-
     # check data_directory existance
     if path.exists(args.data_directory) == False:
         raise ValueError(
